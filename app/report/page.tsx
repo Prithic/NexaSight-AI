@@ -11,9 +11,11 @@ import {
   MapPin, 
   Loader2,
   FileText,
-  Send
+  Send,
+  Zap
 } from "lucide-react";
 import { analyzeCivicIssue } from "@/lib/gemini";
+import { supabase } from "@/lib/supabase";
 import Image from "next/image";
 
 interface AnalysisResult {
@@ -27,6 +29,7 @@ interface AnalysisResult {
 export default function ReportPage() {
   const [image, setImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [step, setStep] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +57,41 @@ export default function ReportPage() {
       alert("Failed to analyze image. Please ensure your API key is configured.");
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!result || !image) return;
+    
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from("reports")
+        .insert([
+          {
+            type: result.type,
+            severity_level: result.severityLevel,
+            severity_score: result.severityScore,
+            description: result.description,
+            suggested_action: result.suggestedAction,
+            location: { 
+              lat: 51.505 + (Math.random() - 0.5) * 0.01, 
+              lng: -0.09 + (Math.random() - 0.5) * 0.01,
+              address: "Sector 7, Downtown Core"
+            },
+            status: "Pending"
+          }
+        ]);
+
+      if (error) throw error;
+
+      alert("Report submitted successfully! City authorities have been notified.");
+      reset();
+    } catch (error: any) {
+      console.error("Submission Error:", error);
+      alert(`Failed to submit report: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -221,9 +259,17 @@ export default function ReportPage() {
                   >
                     Retake
                   </button>
-                  <button className="flex-[2] py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg shadow-xl shadow-emerald-500/20 flex items-center justify-center space-x-3 transition-all">
-                    <Send size={24} />
-                    <span>Submit & Track</span>
+                  <button 
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="flex-[2] py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg shadow-xl shadow-emerald-500/20 flex items-center justify-center space-x-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="animate-spin" size={24} />
+                    ) : (
+                      <Send size={24} />
+                    )}
+                    <span>{isSubmitting ? 'Submitting...' : 'Submit & Track'}</span>
                   </button>
                 </div>
               </motion.div>

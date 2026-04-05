@@ -1,28 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import "leaflet/dist/leaflet.css";
-import { MapPin, Info, AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
-// Dynamically import MapContainer to avoid SSR issues
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false }
-);
-const Popup = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Popup),
-  { ssr: false }
+// Dynamically import the entire Map component to avoid SSR and Type issues
+const RealTimeMap = dynamic(
+  () => import("@/components/RealTimeMap"),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-full flex items-center justify-center bg-white/5 rounded-3xl animate-pulse">
+        <Loader2 className="animate-spin text-brand" size={40} />
+      </div>
+    )
+  }
 );
 
-// Sample data for reports
 const sampleReports = [
   { id: 1, type: "Pothole", severity: "High", lat: 51.505, lng: -0.09, desc: "Large pothole in middle of lane." },
   { id: 2, type: "Illegal Dumping", severity: "Critical", lat: 51.51, lng: -0.1, desc: "Hazardous waste dumped near residential area." },
@@ -40,52 +33,21 @@ export default function MapPage() {
         <div className="flex items-center space-x-2 glass px-4 py-2 rounded-xl">
           <div className="flex items-center space-x-2">
             <div className="w-3 h-3 rounded-full bg-rose-500" />
-            <span className="text-xs font-bold uppercase tracking-widest">Critical</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-[10px]">Critical</span>
           </div>
           <div className="flex items-center space-x-2 ml-4">
             <div className="w-3 h-3 rounded-full bg-amber-500" />
-            <span className="text-xs font-bold uppercase tracking-widest">High</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-[10px]">High</span>
           </div>
           <div className="flex items-center space-x-2 ml-4">
             <div className="w-3 h-3 rounded-full bg-emerald-500" />
-            <span className="text-xs font-bold uppercase tracking-widest">Fixed</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-[10px]">Fixed</span>
           </div>
         </div>
       </div>
 
       <div className="flex-1 rounded-3xl overflow-hidden glass border border-white/10 relative">
-        <MapContainer 
-          center={[51.505, -0.09]} 
-          zoom={13} 
-          scrollWheelZoom={true}
-          style={{ height: "100%", width: "100%" }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          {sampleReports.map((report) => (
-            <Marker key={report.id} position={[report.lat, report.lng]}>
-              <Popup>
-                <div className="p-2 space-y-2 max-w-[200px]">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold">{report.type}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      report.severity === 'Critical' ? 'bg-rose-500/20 text-rose-500' : 'bg-amber-500/20 text-amber-500'
-                    }`}>
-                      {report.severity}
-                    </span>
-                  </div>
-                  <p className="text-xs opacity-70 leading-tight">{report.desc}</p>
-                  <button className="w-full bg-brand/20 hover:bg-brand/30 text-brand text-[10px] font-bold py-1.5 rounded-lg transition-colors flex items-center justify-center space-x-1">
-                    <Info size={10} />
-                    <span>View Full Report</span>
-                  </button>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
+        <RealTimeMap reports={sampleReports} />
 
         {/* Legend Overlay */}
         <div className="absolute bottom-6 left-6 z-[1000] p-4 glass rounded-2xl w-64">

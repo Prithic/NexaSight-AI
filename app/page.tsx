@@ -47,40 +47,63 @@ export default function Home() {
           </button>
           <Link href="/report" className="px-6 py-2 rounded-xl bg-brand hover:bg-brand-dark transition-colors text-sm font-bold shadow-lg shadow-brand/20">
             Submit New Report
+          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+            City Intelligence Command
+          </h2>
+          <p className="text-muted-foreground mt-2 text-lg">
+            Real-time urban diagnostic and predictive analytics.
+          </p>
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex -space-x-2">
+            {[1,2,3].map(i => (
+              <div key={i} className="w-10 h-10 rounded-full border-2 border-background bg-brand/20 flex items-center justify-center text-[10px] font-bold">
+                U{i}
+              </div>
+            ))}
+            <div className="w-10 h-10 rounded-full border-2 border-background bg-white/5 flex items-center justify-center text-[10px] font-bold">
+              +12
+            </div>
+          </div>
+          <Link href="/report" className="px-6 py-3 rounded-2xl bg-brand hover:bg-brand-dark text-white font-bold flex items-center space-x-2 transition-all shadow-lg shadow-brand/20 active:scale-95">
+            <Plus size={20} />
+            <span>New Incident</span>
           </Link>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, i) => (
-          <motion.div
-            key={stat.label}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { label: "Total Reports", value: stats.total, icon: Activity, color: "text-brand", trend: "+12%" },
+          { label: "Active Issues", value: stats.active, icon: AlertCircle, color: "text-rose-500", trend: "High Priority" },
+          { label: "Resolved", value: stats.resolved, icon: CheckCircle2, color: "text-emerald-500", trend: "84% Efficiency" },
+          { label: "System Uptime", value: stats.uptime, icon: Shield, color: "text-brand", trend: "Optimized" },
+        ].map((stat, i) => (
+          <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="p-6 rounded-2xl glass glass-hover relative overflow-hidden group"
+            key={stat.label} 
+            className="glass p-6 rounded-3xl border border-white/5 relative overflow-hidden group hover:border-brand/40 transition-colors"
           >
-            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-              <stat.icon size={64} />
+            <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <stat.icon size={120} />
             </div>
-            <div className={`p-2 rounded-lg bg-white/5 w-fit mb-4 ${stat.color}`}>
-              <stat.icon size={20} />
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-2xl bg-white/5 ${stat.color}`}>
+                <stat.icon size={24} />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-white/5 rounded-lg opacity-70">
+                {stat.trend}
+              </span>
             </div>
             <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-            <h3 className="text-3xl font-bold mt-1">{stat.value}</h3>
+            <h3 className="text-3xl font-bold mt-1 tracking-tighter">{stat.value}</h3>
           </motion.div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Main Insight Section */}
-        <div className="xl:col-span-2 space-y-6">
-          <div className="p-8 rounded-3xl glass relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8">
-              <div className="animate-pulse bg-brand/10 p-4 rounded-full">
-                <TrendingUp className="text-brand" size={32} />
-              </div>
             </div>
             <div className="relative z-10">
               <span className="px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-bold uppercase tracking-wider">AI Insight Engine</span>
