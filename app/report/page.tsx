@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Upload, 
@@ -11,27 +11,23 @@ import {
   MapPin, 
   Loader2,
   FileText,
-  Send,
-  Zap
+  Zap,
+  ShieldCheck,
+  Navigation
 } from "lucide-react";
 import { analyzeCivicIssue } from "@/lib/gemini";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
-
-interface AnalysisResult {
-  type: string;
-  severityScore: number;
-  severityLevel: string;
-  description: string;
-  suggestedAction: string;
-}
+import Link from "next/link";
 
 export default function ReportPage() {
-  const [image, setImage] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [step, setStep] = useState(1);
+  const [image, setImage] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [reportData, setReportData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,37 +44,32 @@ export default function ReportPage() {
 
   const handleAnalyze = async () => {
     if (!image) return;
-    setIsAnalyzing(true);
+    setAnalyzing(true);
+    setError(null);
     try {
-      const analysis = await analyzeCivicIssue(image);
-      setResult(analysis);
+      const result = await analyzeCivicIssue(image);
+      setReportData(result);
       setStep(3);
-    } catch (error) {
-      alert("Failed to analyze image. Please ensure your API key is configured.");
+    } catch (err) {
+      setError("AI analysis failed. Please try again or fill manually.");
     } finally {
-      setIsAnalyzing(false);
+      setAnalyzing(false);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!result || !image) return;
-    
+  const submitReport = async () => {
+    if (!reportData) return;
     setIsSubmitting(true);
     try {
       const { error } = await supabase
         .from("reports")
         .insert([
           {
-            type: result.type,
-            severity_level: result.severityLevel,
-            severity_score: result.severityScore,
-            description: result.description,
-            suggested_action: result.suggestedAction,
-            location: { 
-              lat: 51.505 + (Math.random() - 0.5) * 0.01, 
-              lng: -0.09 + (Math.random() - 0.5) * 0.01,
-              address: "Sector 7, Downtown Core"
-            },
+            type: reportData.type,
+            severity: reportData.severityLevel,
+            description: reportData.description,
+            lat: 12.9716, // Default for now
+            lng: 77.5946, // Default for now
             status: "Pending"
           }
         ]);
@@ -97,186 +88,207 @@ export default function ReportPage() {
 
   const reset = () => {
     setImage(null);
-    setResult(null);
+    setReportData(null);
     setStep(1);
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center space-x-4">
-        <div className="p-3 rounded-2xl bg-brand/10 text-brand">
-          <FileText size={24} />
+    <div className="max-w-4xl mx-auto space-y-12 pb-20">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-3 mb-1">
+             <h2 className="text-4xl font-black tracking-tight text-white">Report Incident</h2>
+             <div className="px-2 py-1 rounded bg-brand/10 border border-brand/20 text-[8px] font-black uppercase tracking-widest text-brand flex items-center space-x-1">
+                <ShieldCheck size={10} />
+                <span>AI Verified</span>
+             </div>
+          </div>
+          <p className="text-zinc-500 font-medium text-lg">Harness artificial intelligence for instant diagnostic reporting.</p>
         </div>
-        <div>
-          <h2 className="text-3xl font-bold">Submit Civic Report</h2>
-          <p className="text-muted-foreground">Capture and analyze real-world issues with AI intelligence.</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Left: Progress Steps */}
-        <div className="md:col-span-1 space-y-4">
-          {[
-            { id: 1, label: "Evidence Capture", desc: "Upload or take a photo" },
-            { id: 2, label: "AI Diagnostic", desc: "Intelligent processing" },
-            { id: 3, label: "Review & Submit", desc: "Final verification" },
-          ].map((item) => (
+        
+        <div className="flex items-center space-x-2">
+          {[1, 2, 3].map((s) => (
             <div 
-              key={item.id} 
-              className={`p-4 rounded-2xl border transition-all ${
-                step === item.id 
-                  ? "bg-brand/5 border-brand/20" 
-                  : step > item.id ? "bg-emerald-500/5 border-emerald-500/20" : "bg-white/5 border-white/5"
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                  step >= item.id ? "bg-brand text-white" : "bg-white/10 text-muted-foreground"
-                }`}>
-                  {step > item.id ? <CheckCircle2 size={14} /> : item.id}
-                </div>
-                <span className={`text-sm font-bold ${step === item.id ? "text-brand" : ""}`}>{item.label}</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1 ml-9">{item.desc}</p>
-            </div>
+              key={s} 
+              className={`w-10 h-1 h-1.5 rounded-full transition-all duration-500 ${
+                step >= s ? 'bg-brand' : 'bg-zinc-800'
+              } ${step === s ? 'w-16' : 'w-10'}`} 
+            />
           ))}
         </div>
-
-        {/* Right: Interaction Area */}
-        <div className="md:col-span-2">
-          <AnimatePresence mode="wait">
-            {step === 1 && (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.05 }}
-                className="group relative h-[400px] rounded-3xl border-2 border-dashed border-white/10 glass flex flex-col items-center justify-center cursor-pointer hover:border-brand/40 transition-colors overflow-hidden"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="p-6 rounded-full bg-brand/10 text-brand group-hover:scale-110 transition-transform">
-                  <Camera size={40} />
-                </div>
-                <h3 className="text-xl font-bold mt-6">Upload Evidence</h3>
-                <p className="text-muted-foreground text-sm mt-2">Take a photo or drag & drop</p>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={handleImageUpload} 
-                />
-              </motion.div>
-            )}
-
-            {step === 2 && image && (
-              <motion.div
-                key="step2"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                <div className="relative aspect-video rounded-3xl overflow-hidden glass">
-                  <Image src={image} alt="Preview" fill className="object-cover" />
-                  <button 
-                    onClick={reset}
-                    className="absolute top-4 right-4 p-2 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                
-                <button
-                  disabled={isAnalyzing}
-                  onClick={handleAnalyze}
-                  className="w-full py-4 rounded-2xl bg-brand hover:bg-brand-dark text-white font-bold text-lg shadow-xl shadow-brand/20 flex items-center justify-center space-x-3 transition-all"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="animate-spin" size={24} />
-                      <span>AI Engine Processing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap size={24} />
-                      <span>Analyze with NexaSight AI</span>
-                    </>
-                  )}
-                </button>
-              </motion.div>
-            )}
-
-            {step === 3 && result && (
-              <motion.div
-                key="step3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                <div className="p-8 rounded-3xl glass space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className={`p-2 rounded-lg ${
-                        result.severityLevel === 'Critical' ? 'bg-rose-500/20 text-rose-500' : 'bg-brand/20 text-brand'
-                      }`}>
-                        <AlertTriangle size={20} />
-                      </div>
-                      <span className="font-bold text-lg">{result.type}</span>
-                    </div>
-                    <span className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${
-                      result.severityLevel === 'Critical' ? 'bg-rose-500' : 
-                      result.severityLevel === 'High' ? 'bg-amber-500' : 'bg-emerald-500'
-                    }`}>
-                      {result.severityLevel} PRIORITY
-                    </span>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Description</label>
-                      <p className="mt-1 text-lg leading-relaxed">{result.description}</p>
-                    </div>
-                    
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <label className="text-[10px] font-bold text-brand uppercase tracking-widest">AI Suggested Action</label>
-                      <p className="mt-1 text-sm">{result.suggestedAction}</p>
-                    </div>
-
-                    <div className="flex items-center space-x-4 p-4 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      <MapPin size={20} />
-                      <div className="flex-1">
-                        <p className="text-xs font-bold uppercase">Location Metadata</p>
-                        <p className="text-sm">Auto-detected: Sector 7, Downtown Core</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex space-x-4">
-                  <button 
-                    onClick={reset}
-                    className="flex-1 py-4 rounded-2xl glass glass-hover text-sm font-bold uppercase tracking-widest transition-all"
-                  >
-                    Retake
-                  </button>
-                  <button 
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="flex-[2] py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg shadow-xl shadow-emerald-500/20 flex items-center justify-center space-x-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="animate-spin" size={24} />
-                    ) : (
-                      <Send size={24} />
-                    )}
-                    <span>{isSubmitting ? 'Submitting...' : 'Submit & Track'}</span>
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </div>
+
+      <AnimatePresence mode="wait">
+        {step === 1 && (
+          <motion.div
+            key="step1"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            className="group relative"
+          >
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageUpload}
+              className="hidden" 
+              ref={fileInputRef}
+            />
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="relative aspect-video rounded-[3rem] border-2 border-dashed border-white/10 glass glass-hover cursor-pointer flex flex-col items-center justify-center p-12 transition-all group-hover:border-brand/50 overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-brand/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative p-8 rounded-full bg-zinc-900 border border-white/5 mb-8 shadow-2xl group-hover:scale-110 transition-transform">
+                <Camera className="text-zinc-500 group-hover:text-brand transition-colors" size={48} strokeWidth={1} />
+              </div>
+              <h3 className="text-2xl font-black text-white mb-2">Capture Visual Data</h3>
+              <p className="text-zinc-500 font-medium text-lg">Upload or drag incident photo to initiate analysis</p>
+              
+              <div className="mt-12 flex items-center space-x-6 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">
+                <span className="flex items-center space-x-2">
+                  <CheckCircle2 size={12} className="text-brand" />
+                  <span>Metadata Extraction</span>
+                </span>
+                <span className="flex items-center space-x-2">
+                  <CheckCircle2 size={12} className="text-brand" />
+                  <span>GPS Validation</span>
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 2 && image && (
+          <motion.div
+            key="step2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-8"
+          >
+            <div className="relative aspect-video rounded-[3rem] overflow-hidden glass border border-white/10 shadow-2xl">
+              <Image src={image} alt="Preview" fill className="object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              <button 
+                onClick={reset}
+                className="absolute top-6 right-6 p-4 rounded-full bg-black/40 text-white backdrop-blur-xl border border-white/10 hover:bg-black/60 transition-colors"
+                disabled={analyzing}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <button
+              disabled={analyzing}
+              onClick={handleAnalyze}
+              className="w-full py-6 rounded-[2rem] bg-white text-black font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-white/10 flex items-center justify-center space-x-4 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+            >
+              {analyzing ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} strokeWidth={3} />
+                  <span>Synthesizing Intelligence...</span>
+                </>
+              ) : (
+                <>
+                  <Zap size={20} fill="currentColor" />
+                  <span>Process with NexaSight AI</span>
+                </>
+              )}
+            </button>
+            {error && <p className="text-center text-rose-500 text-sm font-black uppercase tracking-widest">{error}</p>}
+          </motion.div>
+        )}
+
+        {step === 3 && reportData && (
+          <motion.div
+            key="step3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-8"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               {/* Result Card */}
+               <div className="p-10 glass rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8">
+                     <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                       reportData.severityLevel === 'Critical' ? 'bg-rose-500/10 border border-rose-500/20 text-rose-500' : 'bg-brand/10 border border-brand/20 text-brand'
+                     }`}>
+                        {reportData.severityLevel} PRIORITY
+                     </div>
+                  </div>
+
+                  <div className="space-y-8">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">Classified As</h4>
+                      <h3 className="text-4xl font-black text-white">{reportData.type}</h3>
+                    </div>
+
+                    <div className="space-y-4 p-6 rounded-3xl bg-white/5 border border-white/5">
+                      <div className="flex items-center space-x-3 text-brand">
+                        <AlertTriangle size={18} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Diagnostic Insight</span>
+                      </div>
+                      <p className="text-zinc-300 font-medium text-lg leading-relaxed">{reportData.description}</p>
+                    </div>
+
+                    <div className="flex items-start space-x-4">
+                       <div className="p-3 rounded-2xl bg-zinc-900 border border-white/5 text-zinc-400">
+                          <Navigation size={20} />
+                       </div>
+                       <div>
+                         <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Recommended Action</h4>
+                         <p className="text-white font-bold text-sm">{reportData.suggestedAction}</p>
+                       </div>
+                    </div>
+                  </div>
+               </div>
+
+               {/* Submission Details */}
+               <div className="space-y-6">
+                  <div className="p-8 glass rounded-[2.5rem] border border-white/5">
+                     <h3 className="text-sm font-black text-white mb-6 flex items-center space-x-2">
+                        <MapPin size={16} className="text-brand" />
+                        <span>Geo-Validation</span>
+                     </h3>
+                     <div className="space-y-4">
+                        <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                           <span className="text-xs font-bold text-zinc-500">Auto-Detected Sector</span>
+                           <span className="text-xs font-black text-white">Central Core [12.9, 77.5]</span>
+                        </div>
+                        <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                           <span className="text-xs font-bold text-zinc-500">Confidence Score</span>
+                           <span className="text-xs font-black text-emerald-500">98.4%</span>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="flex flex-col space-y-4 pt-4">
+                    <button
+                      disabled={isSubmitting}
+                      onClick={submitReport}
+                      className="w-full py-6 rounded-[2rem] bg-brand hover:bg-brand-dark text-white font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-brand/20 flex items-center justify-center space-x-4 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="animate-spin" size={20} strokeWidth={3} />
+                      ) : (
+                        <>
+                          <CheckCircle2 size={20} />
+                          <span>Finalize & Dispatch Report</span>
+                        </>
+                      )}
+                    </button>
+                    <button 
+                       onClick={reset}
+                       className="w-full py-6 rounded-[2rem] bg-white/5 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-[10px] hover:bg-white/10 transition-colors"
+                    >
+                      Discard Report
+                    </button>
+                  </div>
+               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

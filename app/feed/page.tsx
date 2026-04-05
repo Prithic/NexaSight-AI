@@ -1,147 +1,195 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   AlertCircle, 
   MapPin, 
   Clock, 
   ExternalLink, 
   Image as ImageIcon,
-  CheckCircle2
+  CheckCircle2,
+  Filter,
+  Search,
+  Loader2
 } from "lucide-react";
 
-const feedItems = [
-  {
-    id: "R-8234",
-    type: "Illegal Dumping",
-    location: "Old Quarter, Street 12",
-    time: "2 minutes ago",
-    severity: "Critical",
-    description: "Hazardous waste found near public park entrance.",
-    status: "Pending"
-  },
-  {
-    id: "R-8233",
-    type: "Water Leakage",
-    location: "West Valley Main Rd",
-    time: "15 minutes ago",
-    severity: "Medium",
-    description: "Large pipe burst, water flooding the sidewalk.",
-    status: "Dispatched"
-  },
-  {
-    id: "R-8232",
-    type: "Pothole",
-    location: "Sector 7, Lane B",
-    time: "45 minutes ago",
-    severity: "High",
-    description: "Deep pothole causing traffic slowdowns.",
-    status: "Resolved"
-  },
-  {
-    id: "R-8231",
-    type: "Broken Streetlight",
-    location: "Downtown Core, Plaza",
-    time: "1 hour ago",
-    severity: "Low",
-    description: "Three lights are out in the south plaza area.",
-    status: "Pending"
-  }
-];
-
 export default function FeedPage() {
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("reports")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        setReports(data || []);
+      } catch (err) {
+        console.error("Error fetching reports:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReports();
+
+    // Real-time subscription
+    const channel = supabase
+      .channel("realtime_reports")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "reports" }, (payload) => {
+        setReports((prev) => [payload.new, ...prev]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold">Real-time Incident Feed</h2>
-          <p className="text-muted-foreground">Live stream of city-wide reports and AI diagnostics.</p>
+    <div className="max-w-5xl mx-auto space-y-10">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="space-y-1">
+          <h2 className="text-4xl font-black tracking-tight text-white">Incident Feed</h2>
+          <p className="text-zinc-500 font-medium text-lg">Real-time stream of city-wide reports and AI diagnostics.</p>
         </div>
-        <div className="flex -space-x-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="w-8 h-8 rounded-full border-2 border-background bg-brand/20 flex items-center justify-center text-[10px] font-bold">
-              U{i}
-            </div>
-          ))}
-          <div className="w-8 h-8 rounded-full border-2 border-background bg-zinc-800 flex items-center justify-center text-[10px] font-bold">
-            +42
+        
+        <div className="flex items-center space-x-3">
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-brand transition-colors" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search incidents..." 
+              className="pl-12 pr-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-sm font-semibold text-white outline-none focus:border-brand/50 transition-all w-64"
+            />
           </div>
+          <button className="p-3 rounded-2xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all">
+            <Filter size={20} />
+          </button>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {feedItems.map((item, i) => (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="p-6 rounded-2xl glass glass-hover relative group overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-6 flex flex-col items-end space-y-2">
-              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                item.severity === 'Critical' ? 'bg-rose-500/20 text-rose-500' : 
-                item.severity === 'High' ? 'bg-amber-500/20 text-amber-500' : 'bg-brand/20 text-brand'
-              }`}>
-                {item.severity}
-              </span>
-              <div className="flex items-center space-x-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
-                <Clock size={12} />
-                <span>{item.time}</span>
-              </div>
+      <div className="space-y-6">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-32 space-y-4">
+            <Loader2 className="animate-spin text-brand" size={40} />
+            <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Accessing Database...</p>
+          </div>
+        ) : reports.length === 0 ? (
+          <div className="p-20 rounded-[2.5rem] glass border border-dashed border-white/10 text-center space-y-4">
+            <AlertCircle size={48} className="mx-auto text-zinc-700" />
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold text-white">No Incidents Found</h3>
+              <p className="text-zinc-500">The city is currently quiet. All systems are green.</p>
             </div>
-
-            <div className="flex items-start space-x-6">
-              <div className="w-24 h-24 rounded-xl bg-white/5 flex flex-col items-center justify-center text-muted-foreground group-hover:bg-white/10 transition-colors">
-                <ImageIcon size={24} />
-                <span className="text-[10px] mt-2 font-bold uppercase">Evidence</span>
-              </div>
-              
-              <div className="flex-1 space-y-2 pt-1">
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-bold">{item.type}</h3>
-                  <span className="text-xs text-muted-foreground opacity-50">#{item.id}</span>
-                </div>
+          </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {reports.map((item, i) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.4, delay: i * 0.05 }}
+                className="group relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem]" />
                 
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                  <div className="flex items-center space-x-1">
-                    <MapPin size={14} className="text-brand" />
-                    <span>{item.location}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <div className={`w-2 h-2 rounded-full ${
-                      item.status === 'Resolved' ? 'bg-emerald-500' : 
-                      item.status === 'Dispatched' ? 'bg-brand' : 'bg-amber-500'
-                    }`} />
-                    <span>{item.status}</span>
-                  </div>
-                </div>
-
-                <p className="text-sm leading-relaxed max-w-xl line-clamp-1 group-hover:line-clamp-none transition-all">
-                  {item.description}
-                </p>
-
-                <div className="pt-2 flex items-center space-x-4">
-                  <button className="text-[10px] font-bold uppercase tracking-widest text-brand flex items-center space-x-1 hover:underline">
-                    <ExternalLink size={12} />
-                    <span>Details</span>
-                  </button>
-                  {item.status === 'Resolved' && (
-                    <div className="flex items-center space-x-1 text-[10px] font-bold uppercase tracking-widest text-emerald-500">
-                      <CheckCircle2 size={12} />
-                      <span>Verified Fix</span>
+                <div className="p-8 rounded-[2rem] glass border border-white/5 group-hover:border-white/10 transition-all relative z-10">
+                  <div className="flex flex-col lg:flex-row lg:items-start gap-8">
+                    {/* Visual Evidence Placeholder */}
+                    <div className="w-full lg:w-48 h-48 lg:h-32 rounded-2xl bg-zinc-900 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden group-hover:bg-zinc-800 transition-colors">
+                      <ImageIcon size={32} className="text-zinc-700 group-hover:text-brand transition-colors" strokeWidth={1.5} />
+                      <span className="text-[10px] mt-2 font-black uppercase tracking-widest text-zinc-600">No Image</span>
+                      {item.severity_level === 'Critical' && (
+                        <div className="absolute inset-0 bg-rose-500/5 animate-pulse-soft" />
+                      )}
                     </div>
-                  )}
+
+                    <div className="flex-1 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-3">
+                            <h3 className="text-2xl font-black text-white group-hover:text-brand transition-colors leading-none">
+                              {item.type}
+                            </h3>
+                            <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                              #{item.id.toString().slice(-4)}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-4 text-sm font-semibold text-zinc-400">
+                            <div className="flex items-center space-x-1.5">
+                              <MapPin size={14} className="text-brand" />
+                              <span>{item.location_name || "Unknown Location"}</span>
+                            </div>
+                            <div className="flex items-center space-x-1.5">
+                              <Clock size={14} />
+                              <span>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-2">
+                          <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm ${
+                            item.severity_level === 'Critical' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 
+                            item.severity_level === 'High' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                            'bg-brand/10 text-brand border-brand/20'
+                          }`}>
+                            {item.severity_level}
+                          </span>
+                          <div className="flex items-center space-x-1.5">
+                             <div className={`w-2 h-2 rounded-full ${
+                               item.status === 'Resolved' ? 'bg-emerald-500' : 
+                               item.status === 'Dispatched' ? 'bg-brand shadow-[0_0_8px_rgba(56,189,248,0.4)]' : 'bg-amber-500'
+                             }`} />
+                             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{item.status}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-zinc-300 text-lg leading-relaxed font-medium line-clamp-2 group-hover:line-clamp-none transition-all">
+                        {item.description}
+                      </p>
+
+                      <div className="pt-4 flex items-center justify-between border-t border-white/5">
+                        <div className="flex items-center space-x-6 text-[10px] font-black uppercase tracking-widest">
+                          <button className="flex items-center space-x-2 text-brand hover:text-white transition-colors">
+                            <ExternalLink size={14} />
+                            <span>View Full Diagnostics</span>
+                          </button>
+                          <button className="flex items-center space-x-2 text-zinc-500 hover:text-white transition-colors">
+                            <CheckCircle2 size={14} />
+                            <span>Mark as Resolved</span>
+                          </button>
+                        </div>
+                        
+                        {item.status === 'Resolved' && (
+                          <div className="flex items-center space-x-2 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                             <CheckCircle2 size={14} />
+                             <span>Verified By AI</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        )}
       </div>
 
-      <button className="w-full py-4 rounded-2xl border border-white/5 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-all text-muted-foreground">
-        Load Previous Reports
-      </button>
+      {!loading && reports.length > 0 && (
+        <button className="w-full py-6 rounded-3xl border border-white/10 text-xs font-black uppercase tracking-[0.3em] hover:bg-white/5 transition-all text-zinc-500 hover:text-white">
+          Load Historical Data
+        </button>
+      )}
     </div>
   );
 }
